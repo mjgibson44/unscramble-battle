@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Unscramble Battle</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap">
+<style>
+/* Layout: one-screen app. Battle = two mirrored halves (top one rotated 180°) facing each other across a thin timer rail. */
+:root {
+  --felt: #2b1f44;
+  --felt-hi: #3b2b5e;
+  --felt-lo: #1d1530;
+  --tile: #f7efdc;
+  --tile-edge: #c9b896;
+  --tile-ink: #2b1f44;
+  --p1: #ff8f3f;
+  --p2: #46d3c1;
+  --text: #f4eefc;
+  --muted: #b3a5d4;
+  --bad: #ff5d73;
+  --f-display: "Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+  --f-body: "Nunito", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--felt);
+  color: var(--text);
+  font-family: var(--f-body);
+  font-weight: 600;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
+
+#app { position: relative; height: 100%; }
+.screen { position: absolute; inset: 0; display: flex; flex-direction: column; }
+
+/* ---------- Menu ---------- */
+#menu {
+  overflow-y: auto;
+  align-items: center;
+  padding-block: 28px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background:
+    radial-gradient(60% 40% at 15% 0%, color-mix(in srgb, var(--p1) 22%, transparent), transparent 70%),
+    radial-gradient(60% 40% at 85% 100%, color-mix(in srgb, var(--p2) 20%, transparent), transparent 70%),
+    var(--felt);
+}
+.menu-inner { width: 100%; max-width: 460px; display: flex; flex-direction: column; gap: 22px; margin-block: auto; }
+.logo { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.logo-row { display: flex; gap: 4px; flex-wrap: nowrap; }
+.logo .tile {
+  --t: min(9vw, 40px);
+  pointer-events: none;
+  animation: bob 3.2s ease-in-out infinite;
+  animation-delay: calc(var(--k) * -0.27s);
+}
+.logo-row.battle .tile { background: var(--p1); color: var(--felt-lo); box-shadow: 0 4px 0 #b55a1c; }
+.logo-row.battle .tile:nth-child(even) { background: var(--p2); box-shadow: 0 4px 0 #1f8f80; }
+@keyframes bob { 0%,100% { transform: translateY(0) rotate(calc(var(--r) * 1deg)); } 50% { transform: translateY(-4px) rotate(calc(var(--r) * -1deg)); } }
+.tagline { text-align: center; color: var(--muted); margin: 0; font-size: 15px; text-wrap: balance; }
+
+.mode {
+  background: var(--felt-hi);
+  border-radius: 18px;
+  padding: 18px;
+  display: flex; flex-direction: column; gap: 12px;
+  border: 2px solid color-mix(in srgb, var(--mc) 40%, transparent);
+}
+.mode h2 { font-family: var(--f-display); font-weight: 400; font-size: 26px; margin: 0; letter-spacing: .5px; color: var(--mc); }
+.mode p { margin: 0; color: var(--muted); line-height: 1.45; font-size: 15px; }
+.mode.battle { --mc: var(--p1); }
+.mode.solo { --mc: var(--p2); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper .lbl { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; margin-right: 6px; }
+.stepper button {
+  width: 38px; height: 38px; border-radius: 10px; border: 0;
+  background: var(--felt-lo); font-size: 22px; font-weight: 900; line-height: 1;
+}
+.stepper output { font-family: var(--f-display); font-size: 28px; min-width: 2ch; text-align: center; font-variant-numeric: tabular-nums; }
+.btn {
+  border: 0; border-radius: 14px; padding: 14px 22px;
+  font-family: var(--f-display); font-size: 22px; letter-spacing: .5px;
+  background: var(--mc, var(--p1)); color: var(--felt-lo);
+  box-shadow: 0 5px 0 color-mix(in srgb, var(--mc, var(--p1)) 55%, #000);
+  transition: transform .08s, box-shadow .08s;
+}
+.btn:active { transform: translateY(4px); box-shadow: 0 1px 0 color-mix(in srgb, var(--mc, var(--p1)) 55%, #000); }
+.btn.ghost { background: var(--felt-lo); color: var(--text); box-shadow: 0 5px 0 #120c20; }
+.best { color: var(--muted); font-size: 14px; }
+.best b { color: var(--text); font-variant-numeric: tabular-nums; }
+.menu-foot { display: flex; justify-content: center; }
+.link-btn { background: none; border: 0; color: var(--muted); font-size: 14px; padding: 8px 12px; border-radius: 8px; }
+
+/* ---------- Tiles & boards ---------- */
+.tile, .slot {
+  --t: 48px;
+  width: var(--t); height: var(--t);
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: calc(var(--t) * .2);
+  font-family: var(--f-display);
+  font-size: calc(var(--t) * .56);
+  line-height: 1;
+  --r: 0;
+}
+.tile {
+  border: 0; padding: 0;
+  background: var(--tile); color: var(--tile-ink);
+  box-shadow: 0 calc(var(--t) * .08) 0 var(--tile-edge);
+  transition: transform .09s, opacity .12s, box-shadow .09s;
+  touch-action: manipulation;
+}
+.tile:active { transform: translateY(2px); }
+.tile.used { opacity: .12; transform: translateY(3px) scale(.9); box-shadow: none; pointer-events: none; }
+
+.board { width: 100%; display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2.2dvh, 22px); container-type: inline-size; }
+.board .tile, .board .slot {
+  --t: min(62px, calc((100cqw - (var(--n) - 1) * 6px) / var(--n)), var(--tmax, 100px));
+}
+.slots, .rack { display: flex; gap: 6px; justify-content: center; }
+.slot {
+  border: 2px dashed color-mix(in srgb, var(--pc) 55%, transparent);
+  color: var(--tile-ink);
+}
+.slot.filled {
+  border: 2px solid var(--pc);
+  background: var(--tile);
+  box-shadow: 0 calc(var(--t) * .08) 0 var(--tile-edge);
+  animation: pop .14s ease-out;
+}
+@keyframes pop { from { transform: scale(.7); } to { transform: scale(1); } }
+.board.wrong .slot.filled { background: var(--bad); border-color: var(--bad); color: #fff; box-shadow: none; }
+.board.wrong .slots { animation: shake .4s; }
+@keyframes shake { 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(4px); } }
+.slot.win { background: var(--pc); border: 2px solid var(--pc); color: var(--felt-lo); box-shadow: none; animation: flip .35s ease-out both; animation-delay: calc(var(--k) * 45ms); }
+.slot.lose, .slot.miss { background: transparent; border: 2px solid color-mix(in srgb, var(--muted) 60%, transparent); color: var(--muted); box-shadow: none; animation: flip .35s ease-out both; animation-delay: calc(var(--k) * 45ms); }
+@keyframes flip { from { transform: rotateX(90deg); } to { transform: rotateX(0); } }
+
+.stage { display: grid; width: 100%; place-items: center; }
+.stage > * { grid-area: 1 / 1; }
+.msg {
+  font-family: var(--f-display); font-size: clamp(22px, 4.2dvh, 34px);
+  text-align: center; line-height: 1.15; text-wrap: balance;
+  padding-inline: 8px;
+}
+.msg small { display: block; font-family: var(--f-body); font-weight: 800; font-size: 15px; color: var(--muted); margin-top: 4px; }
+.msg.big { font-size: clamp(56px, 13dvh, 110px); color: var(--pc); animation: zoom .6s ease-out; }
+.msg.good { color: var(--pc); }
+@keyframes zoom { from { transform: scale(1.8); opacity: 0; } 30% { opacity: 1; } to { transform: scale(1); } }
+.stage.showing .rack { visibility: hidden; }
+.stage:not(.showing) .msg { visibility: hidden; }
+
+.tools { display: flex; gap: 10px; justify-content: center; }
+.tool {
+  border: 0; border-radius: 999px; padding: 9px 18px;
+  background: color-mix(in srgb, var(--felt-lo) 80%, transparent);
+  color: var(--muted); font-weight: 800; font-size: 14px; letter-spacing: .6px; text-transform: uppercase;
+}
+.tool:active { background: var(--felt-lo); color: var(--text); }
+.locked .tool { opacity: .35; pointer-events: none; }
+
+/* ---------- Battle ---------- */
+#battle { background: var(--felt-lo); }
+.half {
+  --pc: var(--p1);
+  flex: 1 1 0; min-height: 0;
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: clamp(8px, 1.8dvh, 18px);
+  padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background:
+    radial-gradient(80% 70% at 50% 100%, color-mix(in srgb, var(--pc) 16%, transparent), transparent 75%),
+    var(--felt);
+  transition: background-color .3s;
+}
+.half.p2 { --pc: var(--p2); transform: rotate(180deg); }
+.half .board { max-width: 560px; --tmax: 8.6dvh; }
+.half.flash { animation: flash .7s ease-out; }
+@keyframes flash { from { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--pc) 35%, transparent); } to { box-shadow: inset 0 0 0 999px transparent; } }
+.hud { width: 100%; max-width: 560px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.who { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pname { font-family: var(--f-display); font-size: 20px; color: var(--pc); letter-spacing: .5px; }
+.pips { display: flex; gap: 4px; flex-wrap: wrap; }
+.pip { width: 12px; height: 12px; border-radius: 4px; background: color-mix(in srgb, var(--pc) 22%, transparent); transition: background .3s, transform .3s; }
+.pip.on { background: var(--pc); transform: scale(1.1); }
+.score { font-family: var(--f-display); font-size: clamp(34px, 6dvh, 52px); line-height: 1; color: var(--pc); font-variant-numeric: tabular-nums; }
+.score .of { font-size: .45em; color: var(--muted); }
+
+.rail {
+  flex: none; height: 46px;
+  display: flex; align-items: center; gap: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--felt-lo);
+  position: relative; z-index: 2;
+}
+.timer { flex: 1; height: 8px; border-radius: 99px; background: var(--felt-hi); overflow: hidden; }
+.timer > i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--p1), var(--p2)); transform-origin: center; }
+.timer.low > i { background: var(--bad); }
+.round-lbl { font-family: var(--f-display); color: var(--muted); font-size: 16px; min-width: 3ch; text-align: center; font-variant-numeric: tabular-nums; }
+.rail .tool { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
+.rail .end-actions { display: flex; gap: 10px; flex: 1; justify-content: center; }
+.rail .end-actions .btn { font-size: 17px; padding: 8px 16px; box-shadow: 0 3px 0 #120c20; }
+
+/* ---------- Solo ---------- */
+#solo {
+  --pc: var(--p2);
+  align-items: center;
+  padding-block: 14px 20px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background:
+    radial-gradient(70% 50% at 50% 100%, color-mix(in srgb, var(--p2) 16%, transparent), transparent 75%),
+    var(--felt);
+  overflow-y: auto;
+}
+.solo-inner { width: 100%; max-width: 560px; flex: 1; display: flex; flex-direction: column; gap: 18px; }
+.solo-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--felt-hi); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-weight: 800; }
+.stat .v { font-family: var(--f-display); font-size: 26px; font-variant-numeric: tabular-nums; }
+.solo-play { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 22px; }
+.meter { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.meter .pts { font-family: var(--f-display); font-size: clamp(40px, 9dvh, 64px); line-height: 1; color: var(--pc); font-variant-numeric: tabular-nums; }
+.meter .pts-k { font-size: 12px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); font-weight: 800; }
+.meter .bar { width: min(320px, 80%); height: 8px; border-radius: 99px; background: var(--felt-hi); overflow: hidden; }
+.meter .bar > i { display: block; height: 100%; background: var(--pc); transform-origin: left; }
+.solo-play .board { --tmax: 11dvh; }
+.kbd-hint { text-align: center; color: var(--muted); font-size: 13px; margin: 0; }
+@media (hover: none) { .kbd-hint { display: none; } }
+
+.results { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; text-align: center; }
+.results h2 { font-family: var(--f-display); font-weight: 400; font-size: 22px; margin: 0; color: var(--muted); letter-spacing: .5px; }
+.results .final { font-family: var(--f-display); font-size: clamp(64px, 16vw, 96px); line-height: 1; color: var(--p2); font-variant-numeric: tabular-nums; }
+.results .newbest { font-family: var(--f-display); color: var(--p1); font-size: 22px; animation: zoom .6s ease-out; }
+.results .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+.results .actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.log { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.log span { font-size: 13px; padding: 4px 10px; border-radius: 99px; background: var(--felt-hi); color: var(--text); font-weight: 800; letter-spacing: .5px; }
+.log span.miss { color: var(--muted); text-decoration: line-through; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- MENU -->
+  <section id="menu" class="screen">
+    <div class="menu-inner">
+      <div class="logo" aria-label="Unscramble Battle">
+        <div class="logo-row" id="logo1"></div>
+        <div class="logo-row battle" id="logo2"></div>
+      </div>
+      <p class="tagline">Tap the letters in the right order. Five to eight letters, one word at a time.</p>
+
+      <div class="mode battle">
+        <h2>Battle</h2>
+        <p>Two players, one device. Lay it flat between you. You both get the same scramble, and whoever solves it first takes the point.</p>
+        <div class="row">
+          <div class="stepper">
+            <span class="lbl">First to</span>
+            <button type="button" id="tMinus" aria-label="Fewer points">−</button>
+            <output id="tVal">10</output>
+            <button type="button" id="tPlus" aria-label="More points">+</button>
+          </div>
+          <button type="button" class="btn" id="goBattle">Fight</button>
+        </div>
+      </div>
+
+      <div class="mode solo">
+        <h2>Solo Sprint</h2>
+        <p>Ten words against the clock. Every word starts at 100 points per letter and drains as you think. Solve fast to keep more.</p>
+        <div class="row">
+          <span class="best">Best score: <b id="bestMenu">—</b></span>
+          <button type="button" class="btn" id="goSolo">Start</button>
+        </div>
+      </div>
+
+      <div class="menu-foot">
+        <button type="button" class="link-btn" id="soundBtn">Sound: on</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- BATTLE -->
+  <section id="battle" class="screen" hidden>
+    <div class="half p2" id="half1"></div>
+    <div class="rail">
+      <button type="button" class="tool" id="bQuit">Quit</button>
+      <div class="timer" id="bTimer"><i></i></div>
+      <span class="round-lbl" id="bRound">R1</span>
+      <div class="end-actions" id="bEnd" hidden>
+        <button type="button" class="btn" id="bRematch">Rematch</button>
+        <button type="button" class="btn ghost" id="bMenu">Menu</button>
+      </div>
+    </div>
+    <div class="half p1" id="half0"></div>
+  </section>
+
+  <!-- SOLO -->
+  <section id="solo" class="screen" hidden>
+    <div class="solo-inner">
+      <div class="solo-top">
+        <button type="button" class="tool" id="sQuit">Menu</button>
+        <span class="best">Best: <b id="bestSolo">—</b></span>
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="k">Word</span><span class="v" id="sWord">1/10</span></div>
+        <div class="stat"><span class="k">Score</span><span class="v" id="sScore">0</span></div>
+        <div class="stat"><span class="k">Time</span><span class="v" id="sTime">0.0s</span></div>
+      </div>
+
+      <div class="solo-play" id="sPlay">
+        <div class="meter">
+          <span class="pts" id="sPts">0</span>
+          <span class="pts-k">points up for grabs</span>
+          <div class="bar"><i id="sBar"></i></div>
+        </div>
+        <div id="sBoard"></div>
+        <p class="kbd-hint">Keyboard works too: type letters, Backspace to undo, Esc to clear.</p>
+      </div>
+
+      <div class="results" id="sResults" hidden>
+        <h2>Final score</h2>
+        <div class="final" id="rScore">0</div>
+        <div class="newbest" id="rBest" hidden>New best!</div>
+        <div class="grid">
+          <div class="stat"><span class="k">Solved</span><span class="v" id="rSolved">0/10</span></div>
+          <div class="stat"><span class="k">Avg time</span><span class="v" id="rAvg">—</span></div>
+          <div class="stat"><span class="k">Fastest</span><span class="v" id="rFast">—</span></div>
+        </div>
+        <div class="log" id="rLog"></div>
+        <div class="actions">
+          <button type="button" class="btn" style="--mc: var(--p2)" id="rAgain">Play again</button>
+          <button type="button" class="btn ghost" id="rMenu">Menu</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ---------------- Words (5–8 letters) ---------------- */
+const RAW = `
+apple beach bread brick candy chair cloud dance dream eagle earth flame float frost giant ghost grape grass heart horse house juice knife laugh lemon light magic money mouse music night ocean onion paint party piano pizza plant queen quiet radio river robot salad scarf shark sheep shirt shoes skate smile snake space spoon storm sugar table tiger toast tooth tower train truck water whale wheel world zebra
+angel badge baker beard blade blank bloom board brain brave brush camel cabin chalk charm chase chess chief climb clock coast coral couch crane crown curve dairy daisy diary drink eager fairy feast fence field flute focus forest fruit glass globe glove grain guard guest happy honey hotel jelly jewel kitten ladder lemon lucky lunch maple march medal metal mango mirror month motor nurse olive orbit otter panda paper pearl phone pilot plane plate pound power prize proud punch puppy quilt raven ridge roast royal rugby saint scale scene scout shell shine shore sight skill skirt slice smoke snack solar sound spark spice spine sport stamp stack steam stone sweet sword teeth thumb tulip uncle unity vapor video voice wagon watch wheat witch woman yacht youth
+anchor animal autumn banana basket bottle breeze bridge bubble bucket butter button camera candle carpet castle cheese cherry circle closet coffee cookie cotton dragon effect empire engine family farmer father finger flower forest friend garden garlic ginger guitar hammer helmet insect island jacket jungle kettle ladder lizard market meadow monkey mother museum needle number orange palace parrot pencil pepper person planet pocket potato puzzle rabbit rocket saddle school silver singer sister spider spring squash stream summer sunset tablet ticket tomato travel turtle velvet violin wallet window winter wizard yellow zipper
+balloon battery bedroom blanket brother cabbage cartoon chicken compass concert crystal cupcake diamond dolphin edition example factory fantasy feather fiction freedom gallery giraffe harvest history holiday iceberg journey kitchen ladybug lantern leopard library lobster machine mailbox mammoth monster morning mystery network octopus orchard painter panther passage penguin picture pilgrim pirates popcorn printer pumpkin pyramid rainbow reptile rooster sausage science seasons shelter soldier spinach station stomach student sunrise teacher thunder tornado trumpet uniform vampire village volcano weather whisper
+airplane alphabet asteroid backpack baseball birthday blizzard building calendar campfire caterpillar champion chipmunk chocolate classroom computer cucumber daughter dinosaur elephant envelope festival firework flamingo football fountain frontier gardener goldfish hedgehog homework hospital internet jellyfish keyboard kangaroo landmark lemonade magazine marathon mountain mushroom notebook painting pancakes peaceful pinecone platypus pumpkins question railroad raincoat sandwich scissors seashell shoulder skeleton snowball sparkler squirrel starfish strategy sunlight surprise sweater teaspoon thousand treasure triangle umbrella universe vacation whistle woodland yourself
+`;
+const WORDS = [...new Set(RAW.trim().split(/\s+/).map(w => w.toLowerCase()).filter(w => /^[a-z]{5,8}$/.test(w)))];
+const WORDSET = new Set(WORDS);
+
+const rand = n => Math.floor(Math.random() * n);
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function scramble(w) {
+  let s, tries = 0;
+  do { s = shuffle([...w]).join(""); } while ((s === w || WORDSET.has(s)) && ++tries < 60);
+  return s;
+}
+let deck = [];
+function nextWord() { if (!deck.length) deck = shuffle(WORDS.slice()); return deck.pop(); }
+const isCorrect = (guess, target) => guess === target || WORDSET.has(guess);
+
+/* ---------------- Storage ---------------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("ub:" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("ub:" + k, JSON.stringify(v)); } catch {} }
+};
+
+/* ---------------- Sound ---------------- */
+const sfx = (() => {
+  let ctx = null, on = store.get("sound", true);
+  function tone(freq, dur, type = "triangle", vol = 0.06, when = 0) {
+    if (!on) return;
+    try {
+      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+      const t = ctx.currentTime + when;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(ctx.destination);
+      o.start(t); o.stop(t + dur + 0.02);
+    } catch {}
+  }
+  return {
+    get on() { return on; },
+    toggle() { on = !on; store.set("sound", on); return on; },
+    tap(k = 0) { tone(520 + k * 40, 0.07, "triangle", 0.05); },
+    undo() { tone(300, 0.06, "sine", 0.05); },
+    wrong() { tone(180, 0.18, "square", 0.04); tone(140, 0.22, "square", 0.04, 0.09); },
+    win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, "triangle", 0.07, i * 0.07)); },
+    lose() { tone(392, 0.14, "sine", 0.05); tone(311, 0.2, "sine", 0.05, 0.12); },
+    tick() { tone(880, 0.08, "sine", 0.05); },
+    go() { tone(1175, 0.2, "triangle", 0.07); },
+    fanfare() { [523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, "triangle", 0.07, i * 0.11)); }
+  };
+})();
+
+/* ---------------- Board component ---------------- */
+function createBoard(host, onFull) {
+  host.classList.add("board");
+  host.innerHTML = `<div class="slots"></div><div class="stage"><div class="rack"></div><div class="msg"></div></div>`;
+  const slotsEl = host.querySelector(".slots");
+  const stageEl = host.querySelector(".stage");
+  const rackEl = host.querySelector(".rack");
+  const msgEl = host.querySelector(".msg");
+  let letters = [], picks = [], locked = true, epoch = 0;
+
+  function render() {
+    [...slotsEl.children].forEach((s, k) => {
+      const filled = k < picks.length;
+      s.textContent = filled ? letters[picks[k]] : "";
+      s.classList.toggle("filled", filled);
+    });
+    [...rackEl.children].forEach((t, i) => t.classList.toggle("used", picks.includes(i)));
+  }
+  function pick(i) {
+    if (locked || picks.includes(i) || picks.length >= letters.length) return;
+    picks.push(i); sfx.tap(picks.length); render();
+    if (picks.length === letters.length) onFull(picks.map(j => letters[j]).join("").toLowerCase());
+  }
+  function unpickAt(k) {
+    if (locked || k < 0 || k >= picks.length) return;
+    picks.splice(k, 1); sfx.undo(); render();
+  }
+
+  rackEl.addEventListener("pointerdown", e => {
+    const t = e.target.closest(".tile"); if (!t) return;
+    e.preventDefault(); pick(+t.dataset.i);
+  });
+  rackEl.addEventListener("click", e => { // keyboard activation (Enter/Space) only
+    if (e.detail !== 0) return;
+    const t = e.target.closest(".tile"); if (t) pick(+t.dataset.i);
+  });
+  slotsEl.addEventListener("pointerdown", e => {
+    const s = e.target.closest(".slot"); if (!s) return;
+    e.preventDefault(); unpickAt([...slotsEl.children].indexOf(s));
+  });
+
+  return {
+    build(scrambled) {
+      epoch++; letters = [...scrambled.toUpperCase()]; picks = [];
+      host.style.setProperty("--n", letters.length);
+      host.classList.remove("wrong");
+      slotsEl.innerHTML = letters.map((_, k) => `<div class="slot" style="--k:${k}"></div>`).join("");
+      rackEl.innerHTML = letters.map((ch, i) => `<button type="button" class="tile" data-i="${i}" aria-label="${ch}">${ch}</button>`).join("");
+      render();
+    },
+    clear() { if (locked || !picks.length) return; picks = []; sfx.undo(); render(); },
+    backspace() { unpickAt(picks.length - 1); },
+    typeLetter(ch) {
+      ch = ch.toUpperCase();
+      const i = letters.findIndex((l, j) => l === ch && !picks.includes(j));
+      if (i >= 0) pick(i);
+    },
+    lock(v) { locked = v; },
+    wrong(after) {
+      locked = true; sfx.wrong();
+      host.classList.add("wrong");
+      const e0 = epoch;
+      setTimeout(() => {
+        host.classList.remove("wrong");
+        if (e0 !== epoch) return; // board was rebuilt or revealed meanwhile
+        picks = []; render(); locked = false; after && after();
+      }, 520);
+    },
+    reveal(word, cls) {
+      epoch++; locked = true;
+      const W = word.toUpperCase();
+      host.style.setProperty("--n", W.length);
+      slotsEl.innerHTML = [...W].map((ch, k) => `<div class="slot ${cls}" style="--k:${k}">${ch}</div>`).join("");
+    },
+    say(html, cls = "") {
+      msgEl.className = "msg " + cls;
+      msgEl.innerHTML = html;
+      stageEl.classList.toggle("showing", !!html);
+      if (cls.includes("big")) { msgEl.style.animation = "none"; void msgEl.offsetWidth; msgEl.style.animation = ""; }
+    },
+    blank(n) {
+      epoch++; letters = []; picks = [];
+      host.style.setProperty("--n", n);
+      slotsEl.innerHTML = Array.from({ length: n }, (_, k) => `<div class="slot" style="--k:${k}"></div>`).join("");
+      rackEl.innerHTML = Array.from({ length: n }, () => `<button type="button" class="tile used" tabindex="-1"></button>`).join("");
+    }
+  };
+}
+
+/* ---------------- Screens & shared state ---------------- */
+const $ = id => document.getElementById(id);
+const screens = { menu: $("menu"), battle: $("battle"), solo: $("solo") };
+let gen = 0; // bumps on every screen change so stale timers do nothing
+function later(fn, ms) { const g = gen; return setTimeout(() => { if (g === gen) fn(); }, ms); }
+function show(name) {
+  gen++;
+  Object.entries(screens).forEach(([k, el]) => el.hidden = k !== name);
+  if (name === "menu") refreshMenu();
+}
+let wakeLock = null;
+async function keepAwake() {
+  try { if (!wakeLock && navigator.wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => wakeLock = null); } } catch {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && screens.menu.hidden) keepAwake(); });
+
+/* ---------------- Menu ---------------- */
+function logoRow(el, word, offset) {
+  el.innerHTML = [...word].map((ch, k) => `<span class="tile" style="--k:${k + offset};--r:${(k % 2 ? 1 : -1) * (1 + (k % 3))}">${ch}</span>`).join("");
+}
+logoRow($("logo1"), "UNSCRAMBLE", 0);
+logoRow($("logo2"), "BATTLE", 3);
+
+let target = Math.min(10, Math.max(1, store.get("target", 10)));
+function setTarget(v) { target = Math.min(10, Math.max(1, v)); $("tVal").textContent = target; store.set("target", target); }
+setTarget(target);
+$("tMinus").onclick = () => setTarget(target - 1);
+$("tPlus").onclick = () => setTarget(target + 1);
+function refreshMenu() {
+  const b = store.get("best", 0);
+  $("bestMenu").textContent = b ? b.toLocaleString() : "—";
+  $("soundBtn").textContent = "Sound: " + (sfx.on ? "on" : "off");
+}
+$("soundBtn").onclick = () => { sfx.toggle(); refreshMenu(); };
+$("goBattle").onclick = () => startBattle();
+$("goSolo").onclick = () => startSolo();
+
+/* ---------------- Battle ---------------- */
+const ROUND_MS = 45000;
+const halves = [$("half0"), $("half1")];
+const P = halves.map((h, p) => {
+  h.innerHTML = `
+    <div class="hud">
+      <div class="who"><span class="pname">Player ${p + 1}</span><div class="pips"></div></div>
+      <div class="score"><span class="n">0</span><span class="of"></span></div>
+    </div>
+    <div class="bd"></div>
+    <div class="tools"><button type="button" class="tool clr">Clear</button></div>`;
+  const board = createBoard(h.querySelector(".bd"), guess => onBattleGuess(p, guess));
+  h.querySelector(".clr").addEventListener("pointerdown", e => { e.preventDefault(); board.clear(); });
+  return { half: h, board, scoreEl: h.querySelector(".score .n"), ofEl: h.querySelector(".score .of"), pipsEl: h.querySelector(".pips") };
+});
+const B = { scores: [0, 0], round: 0, word: "", state: "idle", start: 0, lastTick: 0 };
+
+function paintScores() {
+  P.forEach((pl, p) => {
+    pl.scoreEl.textContent = B.scores[p];
+    pl.ofEl.textContent = "/" + target;
+    pl.pipsEl.innerHTML = Array.from({ length: target }, (_, i) => `<span class="pip${i < B.scores[p] ? " on" : ""}"></span>`).join("");
+  });
+}
+function setLocked(v) { P.forEach(pl => { pl.board.lock(v); pl.half.classList.toggle("locked", v); }); }
+
+function startBattle() {
+  show("battle"); keepAwake();
+  B.scores = [0, 0]; B.round = 0; B.state = "count";
+  $("bEnd").hidden = true; $("bTimer").hidden = false; $("bRound").hidden = false; $("bQuit").hidden = false;
+  resetQuit();
+  paintScores(); setLocked(true);
+  P.forEach(pl => pl.board.blank(6));
+  setTimer(1);
+  $("bRound").textContent = "R1";
+  countdown(n => P.forEach(pl => pl.board.say(n, "big")), nextRound);
+}
+function countdown(sayFn, done) {
+  const seq = ["3", "2", "1"];
+  seq.forEach((n, i) => later(() => { sayFn(n); sfx.tick(); }, i * 750));
+  later(() => { sfx.go(); done(); }, seq.length * 750);
+}
+function nextRound() {
+  B.round++; B.word = nextWord(); B.state = "play";
+  const s = scramble(B.word);
+  $("bRound").textContent = "R" + B.round;
+  P.forEach(pl => { pl.board.build(s); pl.board.say(""); });
+  setLocked(false);
+  B.start = performance.now(); B.lastTick = 0;
+}
+function onBattleGuess(p, guess) {
+  if (B.state !== "play") return;
+  if (!isCorrect(guess, B.word)) { P[p].board.wrong(); return; }
+  B.state = "between"; setLocked(true);
+  B.scores[p]++;
+  const o = 1 - p;
+  P[p].board.reveal(guess, "win");
+  P[o].board.reveal(guess, "lose");
+  P[p].half.classList.remove("flash"); void P[p].half.offsetWidth; P[p].half.classList.add("flash");
+  paintScores();
+  if (B.scores[p] >= target) { endBattle(p); return; }
+  sfx.win();
+  P[p].board.say(`+1 point!<small>${(performance.now() - B.start) / 1000 < 10 ? "Lightning fast" : "Nice solve"} · ${((performance.now() - B.start) / 1000).toFixed(1)}s</small>`, "good");
+  P[o].board.say(`Player ${p + 1} got it<small>Get the next one</small>`);
+  later(nextRound, 2000);
+}
+function roundTimeout() {
+  B.state = "between"; setLocked(true); sfx.lose();
+  P.forEach(pl => { pl.board.reveal(B.word, "miss"); pl.board.say(`Time's up<small>Nobody scores this round</small>`); });
+  later(nextRound, 2400);
+}
+function endBattle(w) {
+  B.state = "over"; sfx.fanfare();
+  const l = 1 - w;
+  P[w].board.say(`You win!<small>${B.scores[w]} to ${B.scores[l]}</small>`, "good");
+  P[l].board.say(`So close!<small>${B.scores[l]} to ${B.scores[w]}</small>`);
+  setTimer(0);
+  $("bTimer").hidden = true; $("bRound").hidden = true; $("bQuit").hidden = true;
+  later(() => { $("bEnd").hidden = false; }, 600);
+}
+function setTimer(frac) {
+  $("bTimer").firstElementChild.style.transform = `scaleX(${Math.max(0, frac)})`;
+  $("bTimer").classList.toggle("low", frac < 0.22);
+}
+let quitArmed = null;
+function resetQuit() { clearTimeout(quitArmed); quitArmed = null; $("bQuit").textContent = "Quit"; }
+$("bQuit").onclick = () => {
+  if (quitArmed) { resetQuit(); show("menu"); return; }
+  $("bQuit").textContent = "Tap again";
+  quitArmed = setTimeout(resetQuit, 2200);
+};
+$("bRematch").onclick = () => startBattle();
+$("bMenu").onclick = () => show("menu");
+
+/* ---------------- Solo ---------------- */
+const SOLO_WORDS = 10, SOLO_CAP_MS = 60000, FULL_MS = 3000, DRAIN_MS = 27000, FLOOR = 0.2;
+const S = { i: 0, score: 0, word: "", start: 0, state: "idle", log: [] };
+const soloBoard = createBoard($("sBoard"), onSoloGuess);
+$("sBoard").insertAdjacentHTML("beforeend", `<div class="tools"><button type="button" class="tool" id="sClear">Clear</button><button type="button" class="tool" id="sSkip">Skip</button></div>`);
+$("sClear").addEventListener("pointerdown", e => { e.preventDefault(); soloBoard.clear(); });
+$("sSkip").addEventListener("pointerdown", e => { e.preventDefault(); if (S.state === "play") soloSkip(); });
+
+const maxPts = w => w.length * 100;
+function ptsAt(w, ms) {
+  // full value for the first 3s, then drains linearly to 20% over the next 27s
+  const f = ms <= FULL_MS ? 1 : Math.max(FLOOR, 1 - (1 - FLOOR) * (ms - FULL_MS) / DRAIN_MS);
+  return Math.round(maxPts(w) * f / 5) * 5;
+}
+function paintSolo() {
+  $("sWord").textContent = `${Math.min(S.i, SOLO_WORDS) || 1}/${SOLO_WORDS}`;
+  $("sScore").textContent = S.score.toLocaleString();
+  const b = store.get("best", 0);
+  $("bestSolo").textContent = b ? b.toLocaleString() : "—";
+}
+function startSolo() {
+  show("solo"); keepAwake();
+  Object.assign(S, { i: 0, score: 0, word: "", state: "count", log: [] });
+  $("sPlay").hidden = false; $("sResults").hidden = true;
+  soloBoard.lock(true); soloBoard.blank(6);
+  $("sPts").textContent = "—"; $("sTime").textContent = "0.0s"; $("sBar").style.transform = "scaleX(1)";
+  paintSolo();
+  countdown(n => soloBoard.say(n, "big"), nextSolo);
+}
+function nextSolo() {
+  if (S.i >= SOLO_WORDS) return endSolo();
+  S.i++; S.word = nextWord(); S.state = "play";
+  soloBoard.build(scramble(S.word)); soloBoard.say(""); soloBoard.lock(false);
+  $("sBoard").classList.remove("locked");
+  S.start = performance.now();
+  paintSolo();
+}
+function onSoloGuess(guess) {
+  if (S.state !== "play") return;
+  if (!isCorrect(guess, S.word)) { soloBoard.wrong(); return; }
+  const ms = performance.now() - S.start;
+  const gain = ptsAt(S.word, ms);
+  S.state = "between"; S.score += gain;
+  S.log.push({ word: guess, ms, gain });
+  soloBoard.reveal(guess, "win"); sfx.win();
+  $("sBoard").classList.add("locked");
+  soloBoard.say(`+${gain}<small>${(ms / 1000).toFixed(1)} seconds</small>`, "good");
+  $("sPts").textContent = gain;
+  paintSolo();
+  later(nextSolo, 1300);
+}
+function soloSkip(timedOut) {
+  S.state = "between";
+  S.log.push({ word: S.word, ms: null, gain: 0 });
+  soloBoard.reveal(S.word, "miss"); sfx.lose();
+  $("sBoard").classList.add("locked");
+  soloBoard.say(timedOut ? "Out of time<small>No points</small>" : "Skipped<small>No points</small>");
+  $("sPts").textContent = "0"; $("sBar").style.transform = "scaleX(0)";
+  later(nextSolo, 1600);
+}
+function endSolo() {
+  S.state = "over";
+  const prev = store.get("best", 0);
+  const isBest = S.score > prev;
+  if (isBest) store.set("best", S.score);
+  const solved = S.log.filter(l => l.ms != null);
+  $("rScore").textContent = S.score.toLocaleString();
+  $("rBest").hidden = !isBest || S.score === 0;
+  $("rSolved").textContent = `${solved.length}/${SOLO_WORDS}`;
+  $("rAvg").textContent = solved.length ? (solved.reduce((a, l) => a + l.ms, 0) / solved.length / 1000).toFixed(1) + "s" : "—";
+  $("rFast").textContent = solved.length ? (Math.min(...solved.map(l => l.ms)) / 1000).toFixed(1) + "s" : "—";
+  $("rLog").innerHTML = S.log.map(l => `<span class="${l.ms == null ? "miss" : ""}">${l.word.toUpperCase()}${l.ms == null ? "" : " +" + l.gain}</span>`).join("");
+  $("sPlay").hidden = true; $("sResults").hidden = false;
+  paintSolo(); sfx.fanfare();
+}
+$("sQuit").onclick = () => show("menu");
+$("rAgain").onclick = () => startSolo();
+$("rMenu").onclick = () => show("menu");
+
+document.addEventListener("keydown", e => {
+  if (screens.solo.hidden || S.state !== "play" || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (/^[a-z]$/i.test(e.key)) { soloBoard.typeLetter(e.key); e.preventDefault(); }
+  else if (e.key === "Backspace") { soloBoard.backspace(); e.preventDefault(); }
+  else if (e.key === "Escape") { soloBoard.clear(); e.preventDefault(); }
+});
+
+/* ---------------- Frame loop ---------------- */
+function frame(now) {
+  if (!screens.battle.hidden && B.state === "play") {
+    const left = ROUND_MS - (now - B.start);
+    setTimer(left / ROUND_MS);
+    const secs = Math.ceil(left / 1000);
+    if (left < 5000 && secs !== B.lastTick && secs > 0) { B.lastTick = secs; sfx.tick(); }
+    if (left <= 0) roundTimeout();
+  }
+  if (!screens.solo.hidden && S.state === "play") {
+    const ms = now - S.start;
+    $("sTime").textContent = (ms / 1000).toFixed(1) + "s";
+    const p = ptsAt(S.word, ms);
+    $("sPts").textContent = p;
+    $("sBar").style.transform = `scaleX(${p / maxPts(S.word)})`;
+    if (ms >= SOLO_CAP_MS) soloSkip(true);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+refreshMenu();
+})();
+</script>
+</body>
+</html>
