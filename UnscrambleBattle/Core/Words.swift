@@ -1,7 +1,7 @@
-import Foundation
+import UIKit
 
 enum WordBank {
-    /// Common English words, 5 to 8 letters.
+    /// Common English words, 5 to 9 letters.
     static let words: [String] = {
         let raw = """
 airplane alphabet anchor angel animal apple asteroid autumn backpack badge baker balloon banana
@@ -37,15 +37,36 @@ treasure triangle truck trumpet tulip turtle umbrella uncle uniform unity univer
 vampire vapor velvet video village violin voice volcano wagon wallet watch water weather whale
 wheat wheel whisper whistle window winter witch wizard woman woodland world yacht yellow
 yourself youth zebra zipper
+adventure alligator amusement apartment astronaut avalanche beautiful blueberry boomerang
+bookshelf breakfast brilliant broadcast butterfly calculate cardboard carnation carnivore
+carpenter celebrate chameleon chocolate classroom clockwork coastline collector committee
+community companion condition crocodile crossword curiosity dandelion detective directory
+discovery dragonfly drumstick education elevation emergency encounter equipment excellent
+explosion fantastic fireplace fireworks fisherman forgotten framework furniture generator
+gentleman geography hamburger happiness harmonica hurricane important invention jellyfish
+kilometer landscape lifeguard lightning limestone microwave milkshake moonlight motorbike
+mousetrap nightmare nutrition orchestra overboard pineapple porcupine president professor
+quicksand raspberry rectangle sandstorm saxophone scarecrow scientist secretary snowflake
+snowstorm spaceship spaghetti starlight stopwatch submarine sunflower swordfish tangerine
+telephone telescope tightrope toothache toothpick treehouse turquoise vegetable waterfall
+wonderful xylophone yesterday zookeeper
 """
         let list = raw
             .split(whereSeparator: { $0 == " " || $0 == "\n" })
             .map { String($0).lowercased() }
-            .filter { (5...8).contains($0.count) && $0.allSatisfy { $0.isLetter } }
+            .filter { (5...9).contains($0.count) && $0.allSatisfy { $0.isLetter } }
         return Array(Set(list)).sorted()
     }()
 
     static let lookup = Set(words)
+    private static let checker = UITextChecker()
+
+    /// Checks the deal list first, then the iPhone's built-in English dictionary.
+    static func isRealWord(_ word: String) -> Bool {
+        if lookup.contains(word) { return true }
+        let range = NSRange(location: 0, length: word.utf16.count)
+        return checker.rangeOfMisspelledWord(in: word, range: range, startingAt: 0, wrap: false, language: "en_US").location == NSNotFound
+    }
 
     /// Shuffles until the result is neither the word itself nor another real word.
     static func scramble(_ word: String) -> String {
@@ -54,22 +75,28 @@ yourself youth zebra zipper
         repeat {
             result = String(word.shuffled())
             tries += 1
-        } while (result == word || lookup.contains(result)) && tries < 60
+        } while (result == word || isRealWord(result)) && tries < 60
         return result
     }
 
     /// The guess always uses the right letters (it comes from the tiles), so any real word counts.
     static func isCorrect(_ guess: String, answer: String) -> Bool {
-        guess == answer || lookup.contains(guess)
+        guess == answer || isRealWord(guess)
     }
 }
 
-/// Deals words without repeats until the whole list has been used.
+/// Deals each length once, in random order, before repeating any length.
+/// Words don't repeat until every word of that length has been used.
 struct WordDeck {
-    private var pile: [String] = []
+    private var lengths: [Int] = []
+    private var piles: [Int: [String]] = [:]
 
     mutating func next() -> String {
-        if pile.isEmpty { pile = WordBank.words.shuffled() }
-        return pile.removeLast()
+        if lengths.isEmpty { lengths = Array(5...9).shuffled() }
+        let length = lengths.removeLast()
+        if piles[length, default: []].isEmpty {
+            piles[length] = WordBank.words.filter { $0.count == length }.shuffled()
+        }
+        return piles[length]!.removeLast()
     }
 }

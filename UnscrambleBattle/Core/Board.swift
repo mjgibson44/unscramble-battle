@@ -72,6 +72,16 @@ final class BoardModel: ObservableObject {
         Feedback.undo()
     }
 
+    /// Rearranges the rack. Letters already in the slots stay where they are.
+    func shuffle() {
+        guard !locked, !isBlank, Set(letters).count > 1 else { return }
+        var order = Array(letters.indices)
+        repeat { order.shuffle() } while order.map({ letters[$0] }) == letters
+        letters = order.map { letters[$0] }
+        picks = picks.map { order.firstIndex(of: $0)! }
+        Feedback.tap()
+    }
+
     /// Wrong answer: flash red, shake, then empty the slots.
     func reject() {
         locked = true
