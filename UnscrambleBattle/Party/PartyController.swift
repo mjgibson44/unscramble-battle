@@ -158,7 +158,10 @@ final class PartyController: NSObject, ObservableObject {
     }
 
     private func makeSession() {
-        let peer = MCPeerID(displayName: String(myName.prefix(20)))
+        // MCPeerID throws if the name is over 63 bytes (emoji can be several bytes each).
+        var display = myName
+        while display.utf8.count > 63 { display.removeLast() }
+        let peer = MCPeerID(displayName: display)
         peerID = peer
         let s = MCSession(peer: peer, securityIdentity: nil, encryptionPreference: .required)
         s.delegate = self
