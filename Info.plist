@@ -2,12 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Unscramble Battle uses the local network to find and join Party games with iPhones nearby.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_unscramble._tcp</string>
 		<string>_unscramble._udp</string>
 	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Unscramble Battle uses the local network to find and join Party games with iPhones nearby.</string>
 </dict>
 </plist>

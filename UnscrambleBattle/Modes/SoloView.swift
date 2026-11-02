@@ -150,6 +150,7 @@ struct SoloView: View {
                     }
                     BoardView(model: game.board, color: color, width: geo.size.width - 32, maxTile: 64, message: game.message)
                     HStack(spacing: 10) {
+                        Button("Shuffle") { game.board.shuffle() }
                         Button("Clear") { game.board.clear() }
                         Button("Skip") { game.skip() }
                     }

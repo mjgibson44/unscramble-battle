@@ -271,9 +271,12 @@ struct PartyGameView: View {
 
                 Spacer(minLength: 0)
                 BoardView(model: party.board, color: myColor, width: geo.size.width, maxTile: 64, message: party.message)
-                Button("Clear") { party.board.clear() }
-                    .buttonStyle(PillButtonStyle())
-                    .opacity(party.phase == .playing && !party.board.locked ? 1 : 0)
+                HStack(spacing: 10) {
+                    Button("Shuffle") { party.board.shuffle() }
+                    Button("Clear") { party.board.clear() }
+                }
+                .buttonStyle(PillButtonStyle())
+                .opacity(party.phase == .playing && !party.board.locked ? 1 : 0)
                 Spacer(minLength: 0)
             }
         }

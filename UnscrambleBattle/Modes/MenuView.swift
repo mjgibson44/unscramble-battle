@@ -10,7 +10,7 @@ struct MenuView: View {
             VStack(spacing: 20) {
                 Logo().padding(.top, 20)
 
-                Text("Tap the letters in the right order. Five to eight letters, one word at a time.")
+                Text("Tap the letters in the right order. Five to nine letters, one word at a time.")
                     .font(Theme.body(15))
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
