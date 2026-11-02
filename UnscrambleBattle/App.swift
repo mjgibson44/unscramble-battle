@@ -11,7 +11,7 @@ struct UnscrambleBattleApp: App {
 }
 
 enum Screen: Hashable {
-    case menu, solo, faceOff, party
+    case menu, solo, party
 }
 
 struct RootView: View {
@@ -25,8 +25,6 @@ struct RootView: View {
                 MenuView(go: { screen = $0 })
             case .solo:
                 SoloView(exit: { screen = .menu })
-            case .faceOff:
-                FaceOffView(exit: { screen = .menu })
             case .party:
                 PartyView(exit: { screen = .menu })
             }

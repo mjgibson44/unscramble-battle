@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MenuView: View {
     let go: (Screen) -> Void
-    @AppStorage("faceOffTarget") private var target = 10
     @AppStorage("best") private var best = 0
     @AppStorage("sound") private var sound = true
 
@@ -25,17 +24,6 @@ struct MenuView: View {
                     Spacer()
                     Button("Play") { go(.party) }
                         .buttonStyle(ChunkyButtonStyle(color: Theme.players[2]))
-                }
-
-                ModeCard(
-                    title: "Face-Off",
-                    color: Theme.players[0],
-                    blurb: "Two players, one iPhone. Lay it flat between you. First to solve the scramble takes the point."
-                ) {
-                    CountStepper(label: "First to", value: $target, range: 1...10)
-                    Spacer()
-                    Button("Fight") { go(.faceOff) }
-                        .buttonStyle(ChunkyButtonStyle(color: Theme.players[0]))
                 }
 
                 ModeCard(
